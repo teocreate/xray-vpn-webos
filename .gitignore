@@ -6,3 +6,4 @@ __pycache__/
 client_key.json
 *.log
 .DS_Store
+.build/
