@@ -1,0 +1,223 @@
+#!/bin/sh
+# vpnctl - control script for the Xray full-device tunnel on this LG webOS TV.
+# Lives at /media/developer/xrayvpn/vpnctl. Logs: xray.log (xray), watch.log (watchdog).
+# Usage (run as root):
+#   vpnctl start | stop | restart | status
+#   vpnctl autostart on|off   - start at TV boot via webosbrew init.d
+#   vpnctl _boot / _watch     - internal
+#
+# While the tunnel is wanted (.want exists) a watchdog keeps it alive: it restarts xray if it
+# died or the physical interface changed (wifi <-> ethernet), and fails OPEN (stops the tunnel)
+# if the local network is fine but nothing gets through the tunnel for several checks in a row,
+# so a dead server can never leave the TV without internet.
+
+DIR=/media/developer/xrayvpn
+BIN="$DIR/xray"
+CONF="$DIR/config.json"
+LOG="$DIR/xray.log"
+WLOG="$DIR/watch.log"
+PID="$DIR/xray.pid"
+WPID="$DIR/watch.pid"
+WANT="$DIR/.want"
+FAILED="$DIR/.failed"
+AUTOSTART_FLAG="$DIR/.autostart"
+HOOK=/var/lib/webosbrew/init.d/70-xrayvpn
+
+# Keep the Go heap small on this ~800 MB TV; xray itself is protected from the OOM killer below.
+export GOMEMLIMIT=96MiB
+export GOGC=50
+
+alive() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
+is_running() { alive "$PID"; }
+wlog() { echo "[$(date '+%F %T')] $*" >>"$WLOG"; }
+
+phys_iface() { ip route 2>/dev/null | awk '/^default/ && $5 != "xray-tun" {print $5; exit}'; }
+conf_iface() { sed -n 's/.*"autoOutboundsInterface": *"\([^"]*\)".*/\1/p' "$CONF" | head -1; }
+
+wait_route() {
+    i=0
+    while [ "$i" -lt "${1:-30}" ]; do
+        [ -n "$(phys_iface)" ] && return 0
+        i=$((i + 1)); sleep 1
+    done
+    return 1
+}
+
+# Strict reverse-path filtering drops the proxy server's replies: they arrive on the physical
+# interface while the return route points at xray-tun. Disable it while the tunnel is up and
+# put the original values back on stop.
+RPF=/proc/sys/net/ipv4/conf
+rp_off() {
+    if [ ! -f "$DIR/.rp_orig" ]; then
+        for f in "$RPF"/*/rp_filter; do echo "$f $(cat "$f")"; done > "$DIR/.rp_orig"
+    fi
+    for f in "$RPF"/*/rp_filter; do echo 0 > "$f" 2>/dev/null; done
+}
+rp_restore() {
+    [ -f "$DIR/.rp_orig" ] || return 0
+    while read -r f v; do [ -e "$f" ] && echo "$v" > "$f" 2>/dev/null; done < "$DIR/.rp_orig"
+    rm -f "$DIR/.rp_orig"
+}
+
+xray_up() {
+    rm -f "$LOG"
+    setsid "$BIN" run -c "$CONF" >"$LOG" 2>&1 &
+    echo $! > "$PID"
+    # Never let the OOM killer pick the tunnel (webOS frees RAM by killing apps, not root daemons).
+    echo -1000 > "/proc/$(cat "$PID")/oom_score_adj" 2>/dev/null || true
+    sleep 2
+    rp_off
+    is_running
+}
+
+xray_down() {
+    if is_running; then
+        kill "$(cat "$PID")" 2>/dev/null
+        for i in 1 2 3 4 5; do is_running || break; sleep 1; done
+        is_running && kill -9 "$(cat "$PID")" 2>/dev/null
+    fi
+    rm -f "$PID"
+}
+
+do_start() {
+    if is_running; then echo "Already running (pid $(cat "$PID"))."; return 0; fi
+    [ -f "$CONF" ] || { echo "No config.json in $DIR." >&2; return 1; }
+    wait_route 30 || { echo "No default route (network down)." >&2; return 1; }
+    rm -f "$FAILED"
+    # Keep the config's interface in step with the real one (wifi vs ethernet).
+    cur=$(phys_iface); old=$(conf_iface)
+    [ -n "$cur" ] && [ -n "$old" ] && [ "$cur" != "$old" ] && sed -i "s/\"autoOutboundsInterface\": *\"$old\"/\"autoOutboundsInterface\": \"$cur\"/" "$CONF"
+    if xray_up; then
+        touch "$WANT"
+        start_watch
+        echo "Started (pid $(cat "$PID"))."
+    else
+        echo "Failed to start - check $LOG" >&2
+        rm -f "$PID"
+        return 1
+    fi
+}
+
+do_stop() {
+    rm -f "$WANT"
+    if alive "$WPID"; then kill "$(cat "$WPID")" 2>/dev/null; fi
+    rm -f "$WPID"
+    xray_down
+    rp_restore
+    echo "Stopped."
+}
+
+start_watch() {
+    alive "$WPID" && return 0
+    setsid "$DIR/vpnctl" _watch >/dev/null 2>&1 &
+    echo $! > "$WPID"
+}
+
+# probe: exit 0 if something answers through the default path
+probe() {
+    curl -s -m 5 -o /dev/null https://www.gstatic.com/generate_204 2>/dev/null ||
+    curl -s -m 5 -o /dev/null https://cp.cloudflare.com/generate_204 2>/dev/null
+}
+
+gw_ok() {
+    gw=$(ip route 2>/dev/null | awk '/^default/ && $5 != "xray-tun" {print $3; exit}')
+    [ -n "$gw" ] && ping -c 1 -W 2 "$gw" >/dev/null 2>&1
+}
+
+do_watch() {
+    echo $$ > "$WPID"
+    wlog "watchdog started"
+    bad=0; restarts=0; tick=0
+    while [ -f "$WANT" ]; do
+        sleep "${XV_TICK:-8}"
+        [ -f "$WANT" ] || break
+        tick=$((tick + 1))
+        rp_off
+        reason=""
+        if ! is_running; then
+            reason="xray died"
+        elif ! ip link show xray-tun >/dev/null 2>&1; then
+            reason="tun interface missing"
+        else
+            cur=$(phys_iface); old=$(conf_iface)
+            if [ -n "$cur" ] && [ -n "$old" ] && [ "$cur" != "$old" ]; then
+                sed -i "s/\"autoOutboundsInterface\": *\"$old\"/\"autoOutboundsInterface\": \"$cur\"/" "$CONF"
+                reason="interface changed $old -> $cur"
+            fi
+        fi
+        if [ -n "$reason" ]; then
+            wlog "restarting: $reason"
+            xray_down
+            wait_route 60 || { wlog "no route, waiting"; continue; }
+            xray_up || wlog "restart failed"
+            bad=0
+            continue
+        fi
+        # Connectivity check every ~40s
+        [ $((tick % 5)) -eq 0 ] || continue
+        if probe; then
+            bad=0; restarts=0
+        elif gw_ok; then
+            bad=$((bad + 1))
+            wlog "no internet through tunnel ($bad/3)"
+            if [ "$bad" -ge 3 ]; then
+                if [ "$restarts" -ge 2 ]; then
+                    wlog "tunnel dead after $restarts restarts - failing open (tunnel stopped)"
+                    touch "$FAILED"
+                    rm -f "$WANT"; xray_down; rp_restore
+                    break
+                fi
+                restarts=$((restarts + 1)); bad=0
+                wlog "restarting xray (attempt $restarts)"
+                xray_down; xray_up || wlog "restart failed"
+            fi
+        else
+            bad=0   # local network is down (wifi reconnecting, standby): not the tunnel's fault
+        fi
+    done
+    rm -f "$WPID"
+    wlog "watchdog exit"
+}
+
+do_status() {
+    if is_running; then
+        echo "Running (pid $(cat "$PID"), rss $(awk '/VmRSS/{print $2" kB"}' /proc/"$(cat "$PID")"/status))."
+        ip -o addr show xray-tun 2>/dev/null || echo "(xray-tun not found - check $LOG)"
+        ip route 2>/dev/null | grep -E '^default|xray-tun'
+        probe && echo "OK: internet reachable" || echo "FAILED: no response through tunnel"
+    else
+        echo "Not running."
+        [ -f "$FAILED" ] && echo "Watchdog stopped the tunnel: server did not respond (see $WLOG)."
+    fi
+    alive "$WPID" && echo "watchdog: on" || echo "watchdog: off"
+    echo "--- autostart ---"
+    [ -f "$AUTOSTART_FLAG" ] && echo "enabled" || echo "disabled"
+}
+
+do_autostart() {
+    case "${1:-}" in
+        on)  mkdir -p /var/lib/webosbrew/init.d; ln -sf "$DIR/boot_hook.sh" "$HOOK"; touch "$AUTOSTART_FLAG"; echo "Autostart enabled." ;;
+        off) rm -f "$HOOK" "$AUTOSTART_FLAG"; echo "Autostart disabled." ;;
+        *)   echo "Usage: vpnctl autostart on|off" >&2; return 1 ;;
+    esac
+}
+
+do_boot() {
+    [ -f "$AUTOSTART_FLAG" ] || exit 0
+    exec >>"$DIR/boot.log" 2>&1
+    echo "[$(date)] boot: waiting for network..."
+    wait_route 90
+    echo "[$(date)] boot: starting tunnel"
+    do_start
+}
+
+case "${1:-}" in
+    start) do_start ;;
+    stop) do_stop ;;
+    restart) do_stop; do_start ;;
+    status) do_status ;;
+    autostart) shift; do_autostart "${1:-}" ;;
+    _boot) do_boot ;;
+    _watch) do_watch ;;
+    *) echo "Usage: vpnctl {start|stop|restart|status|autostart on|off}" >&2; exit 1 ;;
+esac

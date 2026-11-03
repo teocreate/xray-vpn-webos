@@ -1,0 +1,8 @@
+dist/
+tools/
+node_modules/
+__pycache__/
+*.pyc
+client_key.json
+*.log
+.DS_Store

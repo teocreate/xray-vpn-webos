@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Xray VPN</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Xray VPN</div>
+    <div id="pill" class="pill off">Отключено</div>
+  </header>
+
+  <section class="hero">
+    <button id="btnConnect" class="f big" data-act="toggle">Подключить</button>
+    <div class="heroText">
+      <div id="heroTitle">Нет выбранного сервера</div>
+      <div id="heroSub"></div>
+    </div>
+  </section>
+
+  <div class="bar">
+    <div id="tabs"></div>
+    <div class="actions">
+      <button class="f btn" data-act="refresh">Обновить</button>
+      <button class="f btn" data-act="ping">Пинг</button>
+      <button class="f btn" data-act="add">+ Добавить</button>
+      <button class="f btn" data-act="settings">Настройки</button>
+    </div>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<div id="modal" hidden><div id="modalBox"></div></div>
+<div id="toast" hidden></div>
+
+<script src="js/parse.js"></script>
+<script src="js/config.js"></script>
+<script src="js/luna.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
