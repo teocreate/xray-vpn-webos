@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Root-command calls now time out (45 s) and show an error instead of hanging on "Please wait" when the
+  Homebrew Channel service stops answering.
+- Keep-alive ping every 10 s so that service does not idle out in the middle of connecting or pinging.
+
 ## 0.1.0
 
 First public release.
