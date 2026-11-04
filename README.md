@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/hero-en.png" alt="Xray VPN for LG TVs" width="860"></p>
+
 # Xray VPN for webOS
 
 A remote-friendly VPN client for **rooted LG webOS TVs**. It puts the whole TV (YouTube, Netflix, every app) behind an [Xray-core](https://github.com/XTLS/Xray-core) tunnel, with subscriptions, a server list and one-button connect, in the spirit of Happ / INCY on phones.
@@ -6,6 +8,29 @@ A remote-friendly VPN client for **rooted LG webOS TVs**. It puts the whole TV (
 
 > Not affiliated with Happ, INCY or any VPN provider. Neither of those clients is open source or available for webOS, so this is an independent implementation on top of Xray-core.
 
+## Screenshots
+
+The interface follows the TV language (Russian or English). Server names and IPs below are placeholders.
+
+| | |
+|---|---|
+| ![Connected](docs/screenshots/en/connected.png) | ![Disconnected](docs/screenshots/en/disconnected.png) |
+| **Connected.** Uptime and external IP on the left. | **Disconnected.** Pick a server and it connects at once. |
+| ![Connecting](docs/screenshots/en/connecting.png) | ![Error](docs/screenshots/en/error.png) |
+| **Connecting.** | **Failed.** The tunnel is torn down so the TV keeps its internet. |
+| ![Add](docs/screenshots/en/add.png) | ![Enter from phone](docs/screenshots/en/phone.png) |
+| **Add** a subscription or server link. | **Enter from phone:** QR code and address. |
+| ![Settings](docs/screenshots/en/settings.png) | ![Empty](docs/screenshots/en/empty.png) |
+| **Settings.** | **First run.** |
+
+The page the phone opens:
+
+<p>
+<img src="docs/screenshots/en/phone-form.png" alt="Phone form" width="260">
+&nbsp;
+<img src="docs/screenshots/en/phone-done.png" alt="Phone: received" width="260">
+</p>
+
 ## Features
 
 - **Full-device tunnel** through Xray's `tun` inbound; LAN and the proxy server itself stay direct.
@@ -13,6 +38,7 @@ A remote-friendly VPN client for **rooted LG webOS TVs**. It puts the whole TV (
 - **Protocols:** VLESS (Reality / TLS; tcp, ws, grpc, xhttp, httpupgrade), VMess, Trojan, Shadowsocks, Hysteria2.
 - **Add from your phone:** the TV serves a tiny page on `http://<tv-ip>:8088`, paste a link there and it appears on the TV.
 - **Magic Remote and D-pad** navigation, ping all servers, pick a server and it connects at once.
+- **Bundled fonts** (Onest, JetBrains Mono) and a UI in **Russian and English**, chosen by the TV language.
 - **Optional:** `.ru` / `.su` / `.рф` domains direct, autostart at TV boot, Xray log viewer.
 - **Stays up in the background.** Xray runs as a root daemon, independent of the app. A watchdog restarts it after a crash or a Wi-Fi/Ethernet switch, it is protected from the OOM killer, and it **fails open**: if the tunnel carries no traffic while the local network is fine, it is stopped so the TV never loses its internet.
 - Refuses links with `allowInsecure=1`.
@@ -29,20 +55,20 @@ A remote-friendly VPN client for **rooted LG webOS TVs**. It puts the whole TV (
 2. Run the installer:
 
    ```sh
-   sh scripts/install.sh <tv-ip> -k ~/.ssh/<your-root-key> --ipk com.teocreate.xrayvpn_0.1.0_all.ipk
+   sh scripts/install.sh <tv-ip> -k ~/.ssh/<your-root-key> --ipk com.teocreate.xrayvpn_0.2.0_all.ipk
    ```
 
    It downloads Xray-core from the official release page, verifies its SHA-256, copies it with `vpnctl` to `/media/developer/xrayvpn/` on the TV and installs the app. Add `--dry-run` to only test the downloaded binary on the TV.
-3. Open **Xray VPN** on the TV, press **+ Add** and enter your subscription URL (or use **Enter from phone**).
+3. Open **Xray VPN** on the TV, press **+ Add** and enter your subscription URL (or use **From phone →**).
 
 ## Usage
 
 | Action | How |
 |---|---|
 | Connect | Select a server in the list, it connects immediately |
-| Disconnect | The big button at the top |
+| Disconnect | The big round button on the left |
 | Switch server | Select another server |
-| Ping | **Ping** (turn the VPN off first, otherwise the tunnel intercepts the probes) |
+| Ping | **Test ping** (turn the VPN off first, otherwise the tunnel intercepts the probes) |
 | Autostart, `.ru` direct, IP check, log | **Settings** |
 
 CLI on the TV (as root): `/media/developer/xrayvpn/vpnctl start | stop | restart | status | autostart on|off`. Logs: `xray.log`, `watch.log` in the same directory.

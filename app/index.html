@@ -7,31 +7,62 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div id="app">
-  <header>
-    <div class="brand">Xray VPN</div>
-    <div id="pill" class="pill off">Отключено</div>
-  </header>
+<div id="app" class="off">
+  <aside class="side">
+    <header><div class="logo">X</div><div class="brand">Xray VPN</div></header>
+    <div class="core">
+      <div class="ring">
+        <button id="btnConnect" class="f big" data-act="toggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7.4 6.6a7.2 7.2 0 1 0 9.2 0"/><path d="M12 3.2v8"/></svg>
+        </button>
+      </div>
+      <div id="pill"></div>
+      <div id="heroState"></div>
+      <div id="heroHint"></div>
+    </div>
+    <div class="cur none" id="cur">
+      <div class="curRow">
+        <div class="cc" id="heroCode"></div>
+        <div class="curText">
+          <div id="heroTitle"></div>
+          <div id="heroSub"></div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k" data-t="uptime"></div><div class="v" id="uptime">00:00:00</div></div>
+        <div class="stat"><div class="k" data-t="extip"></div><div class="v ip" id="extIp">—</div></div>
+      </div>
+    </div>
+  </aside>
 
-  <section class="hero">
-    <button id="btnConnect" class="f big" data-act="toggle">Подключить</button>
-    <div class="heroText">
-      <div id="heroTitle">Нет выбранного сервера</div>
-      <div id="heroSub"></div>
+  <section class="main">
+    <div class="bar">
+      <div id="tabs"></div>
+      <div class="actions">
+        <button class="f btn" data-act="add" data-t="add"></button>
+        <button class="f btn" data-act="settings" data-t="settings"></button>
+      </div>
+    </div>
+    <div class="listhead" id="listhead">
+      <div class="listinfo" id="listinfo"></div>
+      <button class="f sm" data-act="ping" data-t="ping"></button>
+      <button class="f sm" id="btnRefresh" data-act="refresh" data-t="refresh"></button>
+    </div>
+    <div id="list"></div>
+    <div class="empty" id="empty" hidden>
+      <h3 data-t="emptyH"></h3>
+      <p data-t="emptyP"></p>
+      <div class="btns">
+        <button class="f primary" data-act="add" data-t="emptyAdd"></button>
+        <button class="f ghost" data-act="phone" data-t="emptyPhone"></button>
+      </div>
+    </div>
+    <div class="keys">
+      <div class="key"><b>OK</b><span data-t="keyOk"></span></div>
+      <div class="key"><b>▲▼◀▶</b><span data-t="keyMove"></span></div>
+      <div class="key"><b>BACK</b><span data-t="keyBack"></span></div>
     </div>
   </section>
-
-  <div class="bar">
-    <div id="tabs"></div>
-    <div class="actions">
-      <button class="f btn" data-act="refresh">Обновить</button>
-      <button class="f btn" data-act="ping">Пинг</button>
-      <button class="f btn" data-act="add">+ Добавить</button>
-      <button class="f btn" data-act="settings">Настройки</button>
-    </div>
-  </div>
-
-  <div id="list"></div>
 </div>
 
 <div id="modal" hidden><div id="modalBox"></div></div>
@@ -40,6 +71,8 @@
 <script src="js/parse.js"></script>
 <script src="js/config.js"></script>
 <script src="js/luna.js"></script>
+<script src="js/qrcode.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
