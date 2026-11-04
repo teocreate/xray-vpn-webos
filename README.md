@@ -51,25 +51,30 @@ The page the phone opens:
 
 ## Install
 
+### From the Homebrew Channel (no PC needed)
+
+1. In the Homebrew Channel open **Settings → Add repository** and enter
+
+   ```
+   https://raw.githubusercontent.com/teocreate/xray-vpn-webos/main/repo.json
+   ```
+2. Install **Xray VPN** from the app list and open it.
+3. On the first launch the app installs its helper script and downloads Xray-core from the official GitHub release (about 12 MB), verifying its SHA-256. The TV needs internet and access to github.com. This happens once; later updates from the Homebrew Channel keep it.
+4. Press **+ Add** and enter your subscription URL (or use **From phone →**).
+
+If the first launch reports that the root service does not answer, restart the TV once and open the app again.
+
+### From a PC
+
 1. Download the release assets (`com.teocreate.xrayvpn_<version>_all.ipk` and the `…-unpacked.zip`) and unzip the latter.
 2. Run the installer:
 
    ```sh
-   sh scripts/install.sh <tv-ip> -k ~/.ssh/<your-root-key> --ipk com.teocreate.xrayvpn_0.2.1_all.ipk
+   sh scripts/install.sh <tv-ip> -k ~/.ssh/<your-root-key> --ipk com.teocreate.xrayvpn_0.3.0_all.ipk
    ```
 
-   It downloads Xray-core from the official release page, verifies its SHA-256, copies it with `vpnctl` to `/media/developer/xrayvpn/` on the TV and installs the app. Add `--dry-run` to only test the downloaded binary on the TV.
-3. Open **Xray VPN** on the TV, press **+ Add** and enter your subscription URL (or use **From phone →**).
-
-### Updating through the Homebrew Channel
-
-After the first install with `install.sh` (it puts Xray-core and `vpnctl` on the TV), later versions of the app can be installed and updated from the Homebrew Channel. In the Homebrew Channel open **Settings → Add repository** and enter
-
-```
-https://raw.githubusercontent.com/teocreate/xray-vpn-webos/main/repo.json
-```
-
-**Xray VPN** then appears in the app list. The package alone does not contain Xray-core: on a TV that never ran `install.sh` the app opens but cannot connect.
+   It downloads Xray-core, verifies its SHA-256, copies it with `vpnctl` to `/media/developer/xrayvpn/` on the TV and installs the app. Add `--dry-run` to only test the downloaded binary on the TV.
+3. Open **Xray VPN** on the TV and add your subscription.
 
 ## Usage
 

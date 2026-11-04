@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- **Install without a PC.** On first launch the app installs `vpnctl` and `boot_hook.sh` (shipped inside the package under `tv/`) and downloads Xray-core from its official GitHub release with SHA-256 verification, so the Homebrew Channel package works on its own. `install.sh` still works.
+- The package now includes the TV helper scripts; `scripts/stage.sh` assembles it.
+
 ## 0.2.1
 
 - New app icon and launch screen (splash).

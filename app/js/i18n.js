@@ -31,6 +31,7 @@
       setH: 'Настройки', ruT: 'Российские сайты напрямую', ruD: 'Домены .ru .su .рф открываются без VPN',
       autoT: 'Автозапуск при включении ТВ', autoD: 'VPN подключится сам после загрузки', note: 'Маршрутизация применяется при следующем подключении',
       checkIp: 'Проверить IP', log: 'Журнал Xray', delSub: 'Удалить подписку', ready: 'Готово',
+      setupH: 'Первый запуск', setupP: 'Скачиваю Xray-core с GitHub (около 12 МБ) и проверяю контрольную сумму. Это нужно один раз.', setupDone: 'Xray-core установлен', setupFailH: 'Не удалось установить Xray-core', setupFailLead: 'Проверьте, что у ТВ есть интернет и открывается github.com. Подключиться к VPN без Xray-core нельзя.',
       checkingIp: 'Проверяю IP…', extIpIs: 'Внешний IP: ', ipNone: 'IP не получен'
     },
     en: {
@@ -61,6 +62,7 @@
       setH: 'Settings', ruT: 'Russian sites direct', ruD: '.ru .su .рф domains open without VPN',
       autoT: 'Start when the TV turns on', autoD: 'VPN connects by itself after boot', note: 'Routing changes apply on the next connection',
       checkIp: 'Check IP', log: 'Xray log', delSub: 'Delete subscription', ready: 'Done',
+      setupH: 'First run', setupP: 'Downloading Xray-core from GitHub (about 12 MB) and verifying its checksum. This happens once.', setupDone: 'Xray-core installed', setupFailH: 'Could not install Xray-core', setupFailLead: 'Check that the TV is online and github.com is reachable. VPN cannot connect without Xray-core.',
       checkingIp: 'Checking IP…', extIpIs: 'External IP: ', ipNone: 'IP not received'
     }
   };

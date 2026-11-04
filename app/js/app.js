@@ -323,17 +323,28 @@
   }
 
   // Plain log: showLog(title, text). Error: showLog(title, log, lead, true) — red badge, explanation, retry buttons.
-  function showLog(title, text, lead, isError) {
+  function showLog(title, text, lead, isError, retryAct, closeKey) {
     $('toast').hidden = true;                       // drop a stale "Connecting…" toast
     if (isError) {
       openModal('<div class="badge">' + esc(t('badge')) + '</div><h2>' + esc(title) + '</h2>' +
         (lead ? '<p class="lead">' + esc(lead) + '</p>' : '') + '<pre>' + esc(text || t('empty')) + '</pre>' +
-        '<div class="btns"><button class="f primary" data-act="retry">' + esc(t('retry')) + '</button>' +
-        '<button class="f ghost" data-act="close">' + esc(t('otherServer')) + '</button></div>');
+        '<div class="btns"><button class="f primary" data-act="' + (retryAct || 'retry') + '">' + esc(t('retry')) + '</button>' +
+        '<button class="f ghost" data-act="close">' + esc(t(closeKey || 'otherServer')) + '</button></div>');
     } else {
       openModal('<h2>' + esc(title) + '</h2><pre>' + esc(text || t('empty')) + '</pre>' +
         '<div class="btns"><button class="f primary" data-act="close">' + esc(t('close')) + '</button></div>');
     }
+  }
+
+  // First run: sync helper scripts and fetch Xray-core if the TV has none (no PC needed).
+  function runSetup() {
+    return Setup.ensure(function () {
+      openModal('<h2>' + esc(t('setupH')) + '</h2><p>' + esc(t('setupP')) + '</p><div class="waiting">' + esc(t('hintWait')) + '</div>');
+    }).then(function (did) {
+      if (did) { closeModal(); toast(t('setupDone')); }
+    }).catch(function (e) {
+      showLog(t('setupFailH'), e.message, t('setupFailLead'), true, 'setup', 'close');
+    });
   }
 
   function showAdd() {
@@ -413,6 +424,7 @@
         var v = $('addInput').value; closeModal(); addInput(v); break;
       }
       case 'phone': showPhone(); break;
+      case 'setup': closeModal(); runSetup(); break;
       case 'set-ru': S.settings.ruDirect = !S.settings.ruDirect; save(); showSettings('set-ru'); break;
       case 'set-auto': {
         var want = S.settings.autostart ? 'off' : 'on';
@@ -478,6 +490,7 @@
   render();
   focusFirst($('app'));
   $('btnConnect').focus();
+  runSetup();
   refreshStatus(false).then(function () {
     render();
     if (net.running) refreshStatus(true).then(renderHero);

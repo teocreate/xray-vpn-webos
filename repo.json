@@ -3,7 +3,7 @@
     {
       "id": "com.teocreate.xrayvpn",
       "title": "Xray VPN",
-      "shortDescription": "<p>VPN client for rooted LG webOS TVs: Xray-core tunnel for the whole TV, subscriptions, server list, add links from your phone. Needs the Xray helper files installed with scripts/install.sh.</p>",
+      "shortDescription": "<p>VPN client for rooted LG webOS TVs: Xray-core tunnel for the whole TV, subscriptions, server list, add links from your phone. Downloads Xray-core on first launch, no PC needed.</p>",
       "iconUri": "https://raw.githubusercontent.com/teocreate/xray-vpn-webos/main/docs/icon.png",
       "manifestUrl": "https://github.com/teocreate/xray-vpn-webos/releases/latest/download/com.teocreate.xrayvpn.manifest.json"
     }

@@ -13,8 +13,9 @@ ARES=${ARES:-$HOME/node_modules/@webos-tools/cli/bin}
 
 rm -rf dist; mkdir -p dist
 
-if command -v ares-package >/dev/null 2>&1; then ares-package app -o dist >/dev/null
-else node "$ARES/ares-package.js" app -o dist >/dev/null; fi
+PKG=$(sh scripts/stage.sh)
+if command -v ares-package >/dev/null 2>&1; then ares-package "$PKG" -o dist >/dev/null
+else node "$ARES/ares-package.js" "$PKG" -o dist >/dev/null; fi
 
 # "Unpacked" bundle: same tree the IPK ships, plus everything needed to install and read the project.
 STAGE=$(mktemp -d); trap 'rm -rf "$STAGE"' EXIT
