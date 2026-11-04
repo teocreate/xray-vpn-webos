@@ -1,13 +1,16 @@
 {
   "id": "com.teocreate.xrayvpn",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "vendor": "teocreate",
   "type": "web",
   "main": "index.html",
   "title": "Xray VPN",
   "icon": "icon80.png",
   "largeIcon": "icon130.png",
+  "iconColor": "#242834",
   "bgColor": "#242834",
+  "splashBackground": "splash_1920x1080.png",
+  "splashColor": "#242834",
   "resolution": "1920x1080",
   "disallowScrollingInMainWindow": true
 }

@@ -55,11 +55,21 @@ VPN-клиент с управлением пультом для **LG webOS ТВ
 2. Запустите установщик:
 
    ```sh
-   sh scripts/install.sh <ip-тв> -k ~/.ssh/<ваш-root-ключ> --ipk com.teocreate.xrayvpn_0.2.0_all.ipk
+   sh scripts/install.sh <ip-тв> -k ~/.ssh/<ваш-root-ключ> --ipk com.teocreate.xrayvpn_0.2.1_all.ipk
    ```
 
    Он скачает Xray-core с официальной страницы релизов, проверит SHA-256, скопирует его вместе с `vpnctl` в `/media/developer/xrayvpn/` на ТВ и установит приложение. С флагом `--dry-run` скачанный бинарник только проверяется на ТВ.
 3. Откройте **Xray VPN** на ТВ, нажмите **+ Добавить** и введите URL подписки (или используйте **С телефона →**).
+
+### Обновление через Homebrew Channel
+
+После первой установки через `install.sh` (он кладёт на ТВ Xray-core и `vpnctl`) новые версии приложения можно ставить и обновлять из Homebrew Channel. Откройте там **Settings → Add repository** и введите
+
+```
+https://raw.githubusercontent.com/teocreate/xray-vpn-webos/main/repo.json
+```
+
+После этого **Xray VPN** появится в списке приложений. В самом пакете Xray-core нет: на ТВ, где `install.sh` ни разу не запускали, приложение откроется, но подключиться не сможет.
 
 ## Использование
 

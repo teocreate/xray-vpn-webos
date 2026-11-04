@@ -30,3 +30,16 @@ if command -v sha256sum >/dev/null 2>&1; then sha256sum ./*.ipk ./*.zip > SHA256
 else shasum -a 256 ./*.ipk ./*.zip > SHA256SUMS; fi
 ls -la
 cat SHA256SUMS
+
+# Homebrew Channel manifest: points at the IPK attached to the GitHub release of this version.
+# repo.json (repository root) refers to .../releases/latest/download/<id>.manifest.json.
+REPO=${REPO:-teocreate/xray-vpn-webos}
+IPK=$(ls ./*.ipk | head -1); IPK=${IPK#./}
+node -e '
+var fs=require("fs"),c=require("crypto"),a=JSON.parse(fs.readFileSync("../app/appinfo.json","utf8")),f=process.argv[1],repo=process.argv[2];
+var b=fs.readFileSync(f);
+fs.writeFileSync(a.id+".manifest.json",JSON.stringify({id:a.id,version:a.version,type:a.type,title:a.title,
+  iconUri:"https://raw.githubusercontent.com/"+repo+"/main/docs/icon.png",sourceUrl:"https://github.com/"+repo,rootRequired:true,
+  ipkUrl:"https://github.com/"+repo+"/releases/download/v"+a.version+"/"+f,ipkSize:b.length,ipkHash:{sha256:c.createHash("sha256").update(b).digest("hex")}},null,2)+"\n");
+' "$IPK" "$REPO"
+echo; cat "./$(ls ./*.manifest.json | head -1 | sed 's#^\./##')"
