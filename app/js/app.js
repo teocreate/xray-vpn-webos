@@ -13,6 +13,8 @@
   var phase = false;         // true while connecting / disconnecting: drives the "busy" look of the power button
   var modalOpen = false;
   var phonePoll = null;
+  var lastAdd = '';          // input of the last failed add, for "Retry"
+  var setupRunning = false, setupPending = false;
 
   // ---------- storage ----------
   function load() {
@@ -126,12 +128,15 @@
     $('app').className = state;
     $('pill').textContent = phase ? t('connecting') : up ? t('protOn') : net.running ? t('tunnelOnly') : t('protOff');
     $('heroState').textContent = phase ? t('stBusy') : up ? t('stOn') : t('stOff');
-    $('heroHint').textContent = !a && !allServers().length ? t('hintAddFirst') : phase ? t('hintWait') : net.running ? t('hintOff')
+    $('heroHint').textContent = Luna.fails() >= 2 ? t('svcDeadShort') : !a && !net.running && !allServers().length ? t('hintAddFirst') : phase ? t('hintWait') : net.running ? t('hintOff')
       : net.failed ? t('hintFailed') : t('hintOn');
-    $('cur').className = 'cur' + (a ? '' : ' none');
-    $('heroCode').textContent = a ? ccOf(a) : '';
-    $('heroTitle').textContent = a ? nameOf(a) : t('noServer');
-    $('heroSub').textContent = a ? a.protocol + ' · ' + a.address + ':' + a.port : '';
+    // The tunnel can run without a matching list entry (subscription deleted, config from another session):
+    // say so and show the address from config.json instead of pretending there is no server.
+    var orphan = !a && net.running && net.cfgAddr;
+    $('cur').className = 'cur' + (a || orphan ? '' : ' none');
+    $('heroCode').textContent = a ? ccOf(a) : orphan ? '··' : '';
+    $('heroTitle').textContent = a ? nameOf(a) : orphan ? t('tunnelActive') : t('noServer');
+    $('heroSub').textContent = a ? a.protocol + ' · ' + a.address + ':' + a.port : orphan ? net.cfgAddr + (net.cfgPort ? ':' + net.cfgPort : '') : '';
     var ip = net.ip || (a && /^\d+\.\d+\.\d+\.\d+$/.test(a.address) ? a.address : '');
     $('extIp').textContent = ip || '—';
     tickUptime();
@@ -140,14 +145,15 @@
   function tickUptime() { $('uptime').textContent = net.running && net.upSince ? fmtDur((Date.now() - net.upSince) / 1000) : '00:00:00'; }
 
   // ---------- TV status ----------
-  function refreshStatus(withIp) {
+  function refreshStatus(withIp, quiet) {
     var cmd = 'P=$(cat ' + DIR + '/xray.pid 2>/dev/null); if [ -n "$P" ] && kill -0 $P 2>/dev/null; then echo run=1; ' +
       "echo up=$(awk -v s=$(awk '{print $22}' /proc/$P/stat 2>/dev/null) 'NR==1{printf \"%d\", $1 - s/100}' /proc/uptime 2>/dev/null); else echo run=0; fi; " +
       'ip link show xray-tun >/dev/null 2>&1 && echo tun=1 || echo tun=0; ' +
       "ip route | awk '/^default/{print \"iface=\"$5; exit}'; " +
       "ip -4 addr show wlan0 2>/dev/null | awk '/inet /{split($2,a,\"/\"); print \"lan=\"a[1]; exit}'; " +
       '[ -f ' + DIR + '/.autostart ] && echo auto=1 || echo auto=0; ' +
-      '[ -f ' + DIR + '/.failed ] && echo failed=1 || echo failed=0' +
+      '[ -f ' + DIR + '/.failed ] && echo failed=1 || echo failed=0; ' +
+      "sed -n 's/^ *\"address\": *\"\\([^\"]*\\)\".*/addr=\\1/p; s/^ *\"port\": *\\([0-9]*\\).*/port=\\1/p' " + DIR + '/config.json 2>/dev/null | head -2' +
       (withIp ? '; [ "$(curl -s -m 6 -o /dev/null -w %{http_code} https://www.gstatic.com/generate_204 2>/dev/null)" = 204 ] && echo online=1 || echo online=0; ' +
         'echo ip=$(curl -sf -m 5 https://api.ipify.org 2>/dev/null || curl -sf -m 5 https://ifconfig.me/ip 2>/dev/null)' : '');
     return sh(cmd).then(function (out) {
@@ -160,11 +166,30 @@
       S.settings.autostart = m.auto === '1';
       if (withIp) { net.ip = /^[0-9a-f.:]+$/i.test(m.ip || '') ? m.ip : ''; net.online = m.online === '1'; }
       if (!net.running) net.ip = '';
-    }).catch(function (e) { toast(t('toastNoRoot') + e.message, 6000); });
+      net.cfgAddr = m.addr || ''; net.cfgPort = m.port || '';
+      // Re-attach a running tunnel to its list entry (after an app restart, or when the key was lost).
+      if (net.running && !activeServer() && net.cfgAddr) {
+        var hit = allServers().filter(function (s) { return s.address === net.cfgAddr && String(s.port) === net.cfgPort; })[0];
+        if (hit) { S.activeKey = keyOf(hit); save(); }
+      }
+    }).catch(function (e) { if (!quiet) toast(t('toastNoRoot') + errText(e), 6000); });
+  }
+
+  // Never show a raw "Command failed: <whole shell command>" from the exec service.
+  function errText(e) {
+    var m = String((e && e.message) || e);
+    if (/^Command failed/.test(m)) return t('cmdFailed');
+    return m.length > 200 ? m.slice(0, 200) + '…' : m;
+  }
+
+  // Fail fast (12 s) with a clear message when the exec service is stuck, instead of waiting out 45 s per command.
+  function needService() {
+    return Luna.probe().catch(function () { throw new Error(t('svcDead')); });
   }
 
   // ---------- connect / disconnect ----------
-  function setBusy(v, vpn) { busy = v; phase = v && !!vpn; renderHero(); renderList(); }
+  var busySince = 0;
+  function setBusy(v, vpn) { busy = v; phase = v && !!vpn; busySince = v ? Date.now() : 0; renderHero(); renderList(); }
 
   function connect(server) {
     if (server.error) { toast(t('toastUnsupported') + server.error, 5000); return Promise.resolve(); }
@@ -172,7 +197,8 @@
     setBusy(true, true); toast(t('toastConnecting').replace('%s', nameOf(server)), 30000);
     var cfg = XConfig.buildConfig(server, { iface: net.iface, ruDirect: S.settings.ruDirect });
     var newPath = DIR + '/config.new.json';
-    return Luna.writeFile(newPath, JSON.stringify(cfg, null, 2))
+    return needService()
+      .then(function () { return Luna.writeFile(newPath, JSON.stringify(cfg, null, 2)); })
       .then(function () { return sh(DIR + '/xray run -test -c ' + newPath + ' 2>&1 | tail -6'); })
       .then(function (out) {
         if (out.indexOf('Configuration OK') < 0) throw new Error(t('cfgRejected') + out.trim());
@@ -190,16 +216,17 @@
           showLog(t('failedH'), log, why, true);
         });
       })
-      .catch(function (e) { phase = false; showLog(t('errorH'), e.message, '', true); })
+      .catch(function (e) { phase = false; showLog(t('errorH'), errText(e), '', true); })
       .then(function () { setBusy(false); render(); });
   }
 
   function disconnect() {
     setBusy(true, true);
-    return sh(VPNCTL + ' stop 2>&1')
+    return needService()
+      .then(function () { return sh(VPNCTL + ' stop 2>&1'); })
       .then(function () { return refreshStatus(false); })
       .then(function () { toast(t('toastOff')); })
-      .catch(function (e) { toast(t('toastErr') + e.message, 6000); })
+      .catch(function (e) { toast(t('toastErr') + errText(e), 6000); })
       .then(function () { setBusy(false); render(); });
   }
 
@@ -234,12 +261,17 @@
       var cmd = 'curl -sL -m 25 -A ' + q('XrayVPN-webOS/0.1') +
         ' -H ' + q('x-hwid: ' + d.hwid) + ' -H ' + q('x-device-os: webOS') +
         ' -H ' + q('x-ver-os: ' + d.os) + ' -H ' + q('x-device-model: ' + d.model) +
-        ' -o /tmp/xv_sub -w "%{http_code}" ' + q(url) + '; echo " rc=$?"; cat /tmp/xv_sub';
-      return sh(cmd);
+        ' -o /tmp/xv_sub -w "%{http_code}" ' + q(url) + '; echo " rc=$?"; cat /tmp/xv_sub 2>/dev/null';
+      // Drop the previous download first: a failed curl must not make us parse an old subscription.
+      return needService().then(function () { return sh('rm -f /tmp/xv_sub; ' + cmd); });
     }).then(function (out) {
       var nl = out.indexOf('\n'), head = out.slice(0, nl), body = out.slice(nl + 1);
       var m = /^(\d+) rc=(\d+)/.exec(head);
-      if (!m || m[2] !== '0') throw new Error(t('subDl') + (m ? m[2] : '?') + ')');
+      if (!m || m[2] !== '0') {
+        var rc = m ? m[2] : '?';
+        // 28 timeout, 7 refused, 6 DNS: the host is most likely blocked on this network; a running tunnel fixes that.
+        throw new Error(t('subDl') + rc + ')' + (/^(28|7|6|35|52|56)$/.test(rc) ? '. ' + t(net.running ? 'subViaDead' : 'subBlocked') : ''));
+      }
       if (m[1] !== '200') throw new Error(t('subHttp') + m[1]);
       var servers = XParse.parseSubscription(body);
       if (!servers.length) throw new Error(t('subNone'));
@@ -270,7 +302,11 @@
       });
     });
     return chain.then(function () { save(); render(); toast(t('addedN') + added); })
-      .catch(function (e) { toast(e.message, 6000); });
+      .catch(function (e) {
+        // A toast vanishes in seconds: keep the failure on screen, with a retry for the same input.
+        lastAdd = text; save(); render();
+        showLog(t('addFailH'), null, errText(e), true, 'readd', 'close');
+      });
   }
 
   function refreshSubs() {
@@ -306,7 +342,7 @@
         var tm = parseFloat(m[2]), s = list[+m[1]];
         pings[keyOf(s)] = tm > 0 ? Math.round(tm * 1000) : -1;
       });
-    }).catch(function (e) { toast(e.message, 5000); })
+    }).catch(function (e) { toast(errText(e), 5000); })
       .then(function () { setBusy(false); render(); toast(t('done')); });
   }
 
@@ -327,7 +363,7 @@
     $('toast').hidden = true;                       // drop a stale "Connecting…" toast
     if (isError) {
       openModal('<div class="badge">' + esc(t('badge')) + '</div><h2>' + esc(title) + '</h2>' +
-        (lead ? '<p class="lead">' + esc(lead) + '</p>' : '') + '<pre>' + esc(text || t('empty')) + '</pre>' +
+        (lead ? '<p class="lead">' + esc(lead) + '</p>' : '') + (text === null ? '' : '<pre>' + esc(text || t('empty')) + '</pre>') +
         '<div class="btns"><button class="f primary" data-act="' + (retryAct || 'retry') + '">' + esc(t('retry')) + '</button>' +
         '<button class="f ghost" data-act="close">' + esc(t(closeKey || 'otherServer')) + '</button></div>');
     } else {
@@ -337,13 +373,23 @@
   }
 
   // First run: sync helper scripts and fetch Xray-core if the TV has none (no PC needed).
-  function runSetup() {
+  // The TV often opens the app right at boot while the root service is still starting, so a timeout is not
+  // a verdict: retry quietly, and report "service not answering" (not "Xray failed") if it never answers.
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function runSetup(attempt) {
+    attempt = attempt || 0;
+    if (attempt === 0) { if (setupRunning) return Promise.resolve(); setupRunning = true; }
     return Setup.ensure(function () {
       openModal('<h2>' + esc(t('setupH')) + '</h2><p>' + esc(t('setupP')) + '</p><div class="waiting">' + esc(t('hintWait')) + '</div>');
     }).then(function (did) {
+      setupRunning = false; setupPending = false;
       if (did) { closeModal(); toast(t('setupDone')); }
-    }).catch(function (e) {
-      showLog(t('setupFailH'), e.message, t('setupFailLead'), true, 'setup', 'close');
+    }, function (e) {
+      if (e && e.timeout && attempt < 3) return sleep(5000 * (attempt + 1)).then(function () { return runSetup(attempt + 1); });
+      setupRunning = false;
+      if (e && e.timeout) { setupPending = true; toast(t('svcDead'), 8000); return; }   // retried by the status timer
+      setupPending = false;
+      showLog(t('setupFailH'), errText(e), t('setupFailLead'), true, 'setup', 'close');
     });
   }
 
@@ -425,6 +471,7 @@
       }
       case 'phone': showPhone(); break;
       case 'setup': closeModal(); runSetup(); break;
+      case 'readd': { var again = lastAdd; closeModal(); addInput(again); break; }
       case 'set-ru': S.settings.ruDirect = !S.settings.ruDirect; save(); showSettings('set-ru'); break;
       case 'set-auto': {
         var want = S.settings.autostart ? 'off' : 'on';
@@ -433,9 +480,16 @@
       }
       case 'ip': closeModal(); toast(t('checkingIp'), 10000); refreshStatus(true).then(function () { renderHero(); toast(net.ip ? t('extIpIs') + net.ip : t('ipNone')); }); break;
       case 'log': sh('tail -9 ' + DIR + '/xray.log 2>&1').then(function (txt) { showLog(t('log'), txt); }); break;
-      case 'delsub':
+      case 'delsub': {
+        // Deleting the subscription that holds the connected server must not leave a tunnel running with no
+        // server on screen: stop it.
+        var gone = curSub(), hadActive = gone && gone.servers.some(function (s) { return keyOf(s) === S.activeKey; });
         S.subs = S.subs.filter(function (s) { return s.id !== S.tab; });
-        S.tab = 'manual'; save(); closeModal(); render(); break;
+        S.tab = 'manual'; if (hadActive) S.activeKey = null;
+        save(); closeModal(); render();
+        if (hadActive && net.running) disconnect();
+        break;
+      }
     }
   }
 
@@ -488,13 +542,29 @@
   applyStatic();
   load();
   render();
-  focusFirst($('app'));
   $('btnConnect').focus();
-  runSetup();
-  refreshStatus(false).then(function () {
+  // Status first, then setup: at boot the root service is busy, and two calls at once make it slower.
+  refreshStatus(false, true).then(function () {
     render();
-    if (net.running) refreshStatus(true).then(renderHero);
+    if (net.running) refreshStatus(true, true).then(renderHero);
+    return runSetup();
   });
-  setInterval(function () { if (!busy && !modalOpen) refreshStatus(false).then(function () { renderHero(); }); }, 15000);
+
+  // Coming back from another app the page may have missed state changes (the watchdog can stop a dead tunnel
+  // while we are away), and a stuck busy flag would block the buttons: resync right away.
+  function onResume() {
+    if (busy && Date.now() - busySince > 150000) { busy = false; phase = false; }
+    if (busy) return;
+    refreshStatus(false, true).then(function () { render(); if (setupPending) runSetup(); });
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) onResume(); });
+  document.addEventListener('webOSRelaunch', onResume);
+  window.addEventListener('focus', onResume);
+
+  setInterval(function () {
+    if (busy && Date.now() - busySince > 150000) { busy = false; phase = false; render(); }
+    if (busy || modalOpen) return;
+    refreshStatus(false, true).then(function () { renderHero(); renderList(); if (setupPending) runSetup(); });
+  }, 15000);
   setInterval(tickUptime, 1000);
 })();

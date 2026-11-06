@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- Fix: the first-run check no longer reports "could not install Xray-core" when the root service is merely slow (the TV opens the app at boot, while the service is still starting): it retries quietly, and if the service never answers it says so instead.
+- Fix: after coming back from another app the status is re-read at once; a stuck "busy" state can no longer block the buttons, and commands fail within ~12 s with a clear message when the root service is stuck, instead of hanging for minutes.
+- Fix: commands sent to the TV always return their output (the service used to drop it, and show the whole shell command as the error, when the exit code was non-zero).
+- Fix: a running tunnel with no matching server (subscription deleted) is shown as "Tunnel is active" with its address; deleting the subscription of the connected server stops the tunnel.
+- Fix: adding a subscription that cannot be downloaded shows a persistent error with the reason and a Retry button; a failed download can no longer reuse a previously downloaded subscription.
+
 ## 0.3.0
 
 - **Install without a PC.** On first launch the app installs `vpnctl` and `boot_hook.sh` (shipped inside the package under `tv/`) and downloads Xray-core from its official GitHub release with SHA-256 verification, so the Homebrew Channel package works on its own. `install.sh` still works.
