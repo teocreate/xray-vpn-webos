@@ -2,6 +2,7 @@
 (function (root) {
   'use strict';
 
+  var LANG_RU = /^(ru|uk|be|kk)/i.test((root.navigator && root.navigator.language) || 'ru');
   var DIR = '/media/developer/xrayvpn';
   var APP_DIR = '/media/developer/apps/usr/palm/applications/com.teocreate.xrayvpn';
 
@@ -9,7 +10,7 @@
   // webOS sometimes keeps a stale registration for it, after which calls hang forever without an error.
   function call(uri, params, timeoutMs) {
     return new Promise(function (resolve, reject) {
-      if (!root.PalmServiceBridge) { reject(new Error('Нет PalmServiceBridge (не на ТВ)')); return; }
+      if (!root.PalmServiceBridge) { reject(new Error(LANG_RU ? 'Нет PalmServiceBridge (не на ТВ)' : 'No PalmServiceBridge (not running on a TV)')); return; }
       var done = false, timer = null;
       function fin(fn, v) { if (done) return; done = true; if (timer) clearTimeout(timer); fn(v); }
       var b = new root.PalmServiceBridge();
@@ -19,7 +20,7 @@
         if (r.returnValue === false) fin(reject, new Error(r.errorText || 'luna error'));
         else fin(resolve, r);
       };
-      if (timeoutMs) timer = setTimeout(function () { var e = new Error('Сервис root-команд не отвечает (таймаут)'); e.timeout = true; fin(reject, e); }, timeoutMs);
+      if (timeoutMs) timer = setTimeout(function () { var e = new Error(LANG_RU ? 'Сервис root-команд не отвечает (таймаут)' : 'The root command service is not answering (timeout)'); e.timeout = true; fin(reject, e); }, timeoutMs);
       b.call(uri, JSON.stringify(params || {}));
     });
   }

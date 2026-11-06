@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- The active server in the list is tagged "Current" / "Текущий" instead of repeating the "Connected" status shown on the left.
+- Link-parsing and service errors are translated too (they used to be Russian only).
+
 ## 0.3.1
 
 - Fix: the first-run check no longer reports "could not install Xray-core" when the root service is merely slow (the TV opens the app at boot, while the service is still starting): it retries quietly, and if the service never answers it says so instead.

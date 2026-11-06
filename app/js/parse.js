@@ -2,6 +2,18 @@
 (function (root) {
   'use strict';
 
+  // Error texts end up on screen (list rows, add dialog), so they follow the UI language like i18n.js.
+  var LANG = /^(ru|uk|be|kk)/i.test((root.navigator && root.navigator.language) || 'ru') ? 'ru' : 'en';
+  var MSG = {
+    ru: { parse: 'Не удалось разобрать ссылку', xhttp: 'Некорректный extra в xhttp', transport: 'Транспорт не поддерживается: ', insecure: 'небезопасный TLS, отказ',
+      vless: 'vless: нет uuid/хоста/порта', trojan: 'trojan: нет пароля/хоста/порта', vmess: 'vmess: нет id/хоста/порта', ssBad: 'ss: некорректная ссылка',
+      ssPlugin: 'ss: plugin не поддерживается', hy2: 'hysteria2: нет хоста/порта', hy2obfs: 'hysteria2: obfs не поддерживается', notLink: 'Не ссылка', proto: 'Протокол не поддерживается: ' },
+    en: { parse: 'Could not parse the link', xhttp: 'Invalid xhttp extra', transport: 'Transport not supported: ', insecure: 'insecure TLS, refused',
+      vless: 'vless: missing uuid/host/port', trojan: 'trojan: missing password/host/port', vmess: 'vmess: missing id/host/port', ssBad: 'ss: invalid link',
+      ssPlugin: 'ss: plugins are not supported', hy2: 'hysteria2: missing host/port', hy2obfs: 'hysteria2: obfs is not supported', notLink: 'Not a link', proto: 'Protocol not supported: ' }
+  };
+  function M(k) { return MSG[LANG][k]; }
+
   function b64d(s) {
     s = String(s).replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '');
     while (s.length % 4) s += '=';
@@ -26,7 +38,7 @@
 
   function splitUri(uri) {
     var m = URI_RE.exec(uri.trim());
-    if (!m) throw new Error('Не удалось разобрать ссылку');
+    if (!m) throw new Error(M('parse'));
     var host = m[3];
     if (host.charAt(0) === '[') host = host.slice(1, -1);
     return {
@@ -50,7 +62,7 @@
       s.xhttpSettings = { path: q.path || '/', host: q.host || '', mode: q.mode || 'auto' };
       if (q.extra) {
         try { s.xhttpSettings.extra = JSON.parse(q.extra); }
-        catch (e) { throw new Error('Некорректный extra в xhttp'); }
+        catch (e) { throw new Error(M('xhttp')); }
       }
     } else if (net === 'tcp') {
       if (q.headerType === 'http') {
@@ -58,7 +70,7 @@
           path: [q.path || '/'], headers: q.host ? { Host: [q.host] } : {} } } };
       }
     } else {
-      throw new Error('Транспорт не поддерживается: ' + net);
+      throw new Error(M('transport') + net);
     }
 
     var sec = q.security || defSec || 'none';
@@ -70,7 +82,7 @@
       };
       if (q.pqv) s.realitySettings.mldsa65Verify = q.pqv;
     } else if (sec === 'tls') {
-      if (q.allowInsecure === '1' || q.insecure === '1') throw new Error('allowInsecure=1: небезопасный TLS, отказ');
+      if (q.allowInsecure === '1' || q.insecure === '1') throw new Error('allowInsecure=1: ' + M('insecure'));
       s.security = 'tls';
       var tls = { serverName: q.sni || q.host || '' };
       if (q.fp) tls.fingerprint = q.fp;
@@ -89,7 +101,7 @@
   }
 
   function vless(u) {
-    if (!u.user || !u.host || !u.port) throw new Error('vless: нет uuid/хоста/порта');
+    if (!u.user || !u.host || !u.port) throw new Error(M('vless'));
     var st = applyStream(u.q, 'none');
     var user = { id: u.user, encryption: u.q.encryption || 'none' };
     if (u.q.flow) user.flow = u.q.flow;
@@ -99,7 +111,7 @@
   }
 
   function trojan(u) {
-    if (!u.user || !u.host || !u.port) throw new Error('trojan: нет пароля/хоста/порта');
+    if (!u.user || !u.host || !u.port) throw new Error(M('trojan'));
     var st = applyStream(u.q, 'tls');
     return info(u.name, 'trojan', u.host, u.port, st, {
       tag: 'proxy', protocol: 'trojan',
@@ -109,7 +121,7 @@
   function vmess(uri) {
     var j = JSON.parse(b64d(uri.replace(/^vmess:\/\//i, '').split('#')[0]));
     var host = j.add, port = parseInt(j.port, 10);
-    if (!j.id || !host || !port) throw new Error('vmess: нет id/хоста/порта');
+    if (!j.id || !host || !port) throw new Error(M('vmess'));
     var q = { type: j.net || 'tcp', path: j.path, host: j.host, headerType: j.type,
       security: j.tls === 'tls' ? 'tls' : 'none', sni: j.sni, alpn: j.alpn, fp: j.fp,
       serviceName: j.path, mode: j.type === 'multi' ? 'multi' : '' };
@@ -141,8 +153,8 @@
     }
     var ci = cred.indexOf(':');
     var m = /^(\[[^\]]+\]|[^:]+):(\d+)$/.exec(hp);
-    if (ci < 0 || !m) throw new Error('ss: некорректная ссылка');
-    if (qparse(qs).plugin) throw new Error('ss: plugin не поддерживается');
+    if (ci < 0 || !m) throw new Error(M('ssBad'));
+    if (qparse(qs).plugin) throw new Error(M('ssPlugin'));
     var host = m[1].replace(/^\[|\]$/g, ''), port = parseInt(m[2], 10);
     return info(name, 'shadowsocks', host, port, null, {
       tag: 'proxy', protocol: 'shadowsocks',
@@ -150,9 +162,9 @@
   }
 
   function hysteria2(u) {
-    if (!u.host || !u.port) throw new Error('hysteria2: нет хоста/порта');
-    if (u.q.obfs) throw new Error('hysteria2: obfs не поддерживается');
-    if (u.q.insecure === '1' || u.q.allowInsecure === '1') throw new Error('insecure=1: небезопасный TLS, отказ');
+    if (!u.host || !u.port) throw new Error(M('hy2'));
+    if (u.q.obfs) throw new Error(M('hy2obfs'));
+    if (u.q.insecure === '1' || u.q.allowInsecure === '1') throw new Error('insecure=1: ' + M('insecure'));
     var st = { network: 'hysteria', security: 'tls',
       tlsSettings: { serverName: u.q.sni || u.host, alpn: ['h3'] },
       hysteriaSettings: { version: 2, auth: u.user } };
@@ -166,14 +178,14 @@
   function parseLink(uri) {
     uri = uri.trim();
     var sch = /^([a-z0-9]+):\/\//i.exec(uri);
-    if (!sch) throw new Error('Не ссылка');
+    if (!sch) throw new Error(M('notLink'));
     switch (sch[1].toLowerCase()) {
       case 'vless': return vless(splitUri(uri));
       case 'trojan': return trojan(splitUri(uri));
       case 'vmess': return vmess(uri);
       case 'ss': return shadowsocks(uri);
       case 'hysteria2': case 'hy2': return hysteria2(splitUri(uri));
-      default: throw new Error('Протокол не поддерживается: ' + sch[1]);
+      default: throw new Error(M('proto') + sch[1]);
     }
   }
 
