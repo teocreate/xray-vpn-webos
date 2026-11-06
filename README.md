@@ -83,7 +83,7 @@ If the first launch reports that the root service does not answer, restart the T
 | Connect | Select a server in the list, it connects immediately |
 | Disconnect | The big round button on the left |
 | Switch server | Select another server |
-| Ping | **Test ping** (turn the VPN off first, otherwise the tunnel intercepts the probes) |
+| Ping | The speedometer icon above the list (turn the VPN off first, otherwise the tunnel intercepts the probes) |
 | Autostart, `.ru` direct, IP check, log | **Settings** |
 
 CLI on the TV (as root): `/media/developer/xrayvpn/vpnctl start | stop | restart | status | autostart on|off`. Logs: `xray.log`, `watch.log` in the same directory.

@@ -4,7 +4,7 @@
   var lang = /^(ru|uk|be|kk)/i.test(root.navigator.language || '') ? 'ru' : 'en';
   var D = {
     ru: {
-      uptime: 'В сети', extip: 'Внешний IP', add: '+ Добавить', settings: 'Настройки', ping: 'Проверить пинг', refresh: 'Обновить подписку',
+      uptime: 'В сети', extip: 'Внешний IP', add: '+ Добавить', settings: 'Настройки', ping: 'Замер пинга', refresh: 'Обновить подписку',
       emptyH: 'Здесь пока пусто', emptyP: 'Добавьте ссылку на подписку или сервер. Печатать пультом не придётся — можно отправить с телефона.',
       emptyAdd: '+ Добавить подписку', emptyPhone: 'Отправить с телефона',
       keyOk: 'подключиться', keyMove: 'выбор', keyBack: 'назад',
@@ -36,6 +36,7 @@
       tunnelActive: 'Туннель активен', cmdFailed: 'Команда на ТВ завершилась с ошибкой', addFailH: 'Не удалось добавить',
       subBlocked: 'Сайт подписки, похоже, недоступен с ТВ напрямую. Подключитесь к рабочему серверу и добавьте ссылку ещё раз.',
       subViaDead: 'VPN включён, но сервер не пропускает трафик. Выберите другой сервер и добавьте ссылку ещё раз.',
+      gb: 'ГБ', mb: 'МБ', expired: 'Подписка истекла', daysLeft: 'Осталось %d дн.',
       cleaned: 'Серверов не осталось: VPN отключён, кэш очищен',
       checkingIp: 'Проверяю IP…', extIpIs: 'Внешний IP: ', ipNone: 'IP не получен'
     },
@@ -72,6 +73,7 @@
       tunnelActive: 'Tunnel is active', cmdFailed: 'A command on the TV failed', addFailH: 'Could not add',
       subBlocked: 'The subscription site seems unreachable from the TV directly. Connect to a working server and add the link again.',
       subViaDead: 'VPN is on but the server passes no traffic. Pick another server and add the link again.',
+      gb: 'GB', mb: 'MB', expired: 'Subscription expired', daysLeft: '%d days left',
       cleaned: 'No servers left: VPN stopped, cache cleared',
       checkingIp: 'Checking IP…', extIpIs: 'External IP: ', ipNone: 'IP not received'
     }

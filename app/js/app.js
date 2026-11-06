@@ -55,7 +55,9 @@
     var m = FLAG.exec(s.name || '');
     return m ? String.fromCharCode(m[1].charCodeAt(0) - 0xDDE6 + 65, m[2].charCodeAt(0) - 0xDDE6 + 65) : '··';
   }
-  function nameOf(s) { return (s.name || '').replace(FLAG, '') || s.name; }
+  // Drop the flag and any decorative emoji/symbols a provider puts in front of the name.
+  var DECOR = /^[\s\uD800-􏰀-\uDFFF←-⯿️‍]+/;
+  function nameOf(s) { var n = (s.name || '').replace(FLAG, '').replace(DECOR, ''); return n || s.name; }
   function fmtDur(sec) { sec = Math.max(0, Math.floor(sec)); return pad2(Math.floor(sec / 3600)) + ':' + pad2(Math.floor(sec % 3600 / 60)) + ':' + pad2(sec % 60); }
   function fmtUpdated(ts) {
     var d = new Date(ts), n = new Date(), hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
@@ -98,6 +100,26 @@
     $('tabs').innerHTML = h;
   }
 
+  function fmtBytes(n) {
+    var gb = n / 1073741824;
+    if (gb >= 100) return Math.round(gb) + ' ' + t('gb');
+    if (gb >= 1) return (Math.round(gb * 10) / 10) + ' ' + t('gb');
+    return Math.round(n / 1048576) + ' ' + t('mb');
+  }
+
+  // Expiry and traffic chips for the subscription tab (shown only when the provider sends the info).
+  function subInfoHtml(sub) {
+    var i = sub && sub.info, h = '';
+    if (!i) return h;
+    if (i.expire) {
+      var days = Math.ceil((i.expire * 1000 - Date.now()) / 86400000);
+      var cls = days <= 0 ? 'bad' : days <= 7 ? 'warn' : 'ok';
+      h += '<span class="chip ' + cls + '">' + esc(days <= 0 ? t('expired') : t('daysLeft').replace('%d', days)) + '</span>';
+    }
+    if (i.total) h += '<span class="chip">' + esc(fmtBytes(i.used) + ' / ' + fmtBytes(i.total)) + '</span>';
+    return h;
+  }
+
   function msClass(ms) { return ms < 0 ? 'bad' : ms < 150 ? 'good' : ms < 400 ? 'mid' : 'bad'; }
 
   function renderList() {
@@ -105,7 +127,8 @@
     $('empty').hidden = !empty; $('list').hidden = empty; $('listhead').hidden = empty;
     if (empty) { $('list').innerHTML = ''; return; }
     $('btnRefresh').hidden = !sub;
-    $('listinfo').textContent = list.length + ' ' + t(I18N.plural(list.length)) + (sub && sub.updated ? ' · ' + t('updated') + fmtUpdated(sub.updated) : '');
+    $('listinfo').innerHTML = subInfoHtml(sub) + '<span class="txt">' +
+      esc(list.length + ' ' + t(I18N.plural(list.length)) + (sub && sub.updated ? ' · ' + t('updated') + fmtUpdated(sub.updated) : '')) + '</span>';
     var up = net.running && net.tun;
     list.forEach(function (s, i) {
       var k = keyOf(s), p = pings[k], ms = '';
@@ -276,11 +299,15 @@
       var cmd = 'curl -sL -m 25 -A ' + q('XrayVPN-webOS/0.1') +
         ' -H ' + q('x-hwid: ' + d.hwid) + ' -H ' + q('x-device-os: webOS') +
         ' -H ' + q('x-ver-os: ' + d.os) + ' -H ' + q('x-device-model: ' + d.model) +
-        ' -o /tmp/xv_sub -w "%{http_code}" ' + q(url) + '; echo " rc=$?"; cat /tmp/xv_sub 2>/dev/null';
+        ' -D /tmp/xv_hdr -o /tmp/xv_sub -w "%{http_code}" ' + q(url) + '; echo " rc=$?"; ' +
+        // 2nd line: the provider's traffic/expiry header, if any
+        "echo \"UI $(grep -i '^subscription-userinfo:' /tmp/xv_hdr 2>/dev/null | tr -d '\\r' | tail -1 | cut -d: -f2-)\"; " +
+        'cat /tmp/xv_sub 2>/dev/null';
       // Drop the previous download first: a failed curl must not make us parse an old subscription.
-      return needService().then(function () { return sh('rm -f /tmp/xv_sub; ' + cmd); });
+      return needService().then(function () { return sh('rm -f /tmp/xv_sub /tmp/xv_hdr; ' + cmd); });
     }).then(function (out) {
-      var nl = out.indexOf('\n'), head = out.slice(0, nl), body = out.slice(nl + 1);
+      var nl = out.indexOf('\n'), head = out.slice(0, nl), rest = out.slice(nl + 1);
+      var nl2 = rest.indexOf('\n'), uiLine = rest.slice(0, nl2), body = rest.slice(nl2 + 1);
       var m = /^(\d+) rc=(\d+)/.exec(head);
       if (!m || m[2] !== '0') {
         var rc = m ? m[2] : '?';
@@ -290,8 +317,20 @@
       if (m[1] !== '200') throw new Error(t('subHttp') + m[1]);
       var servers = XParse.parseSubscription(body);
       if (!servers.length) throw new Error(t('subNone'));
-      return servers;
+      return { servers: servers, info: parseUserInfo(uiLine) };
     });
+  }
+
+  // "subscription-userinfo: upload=0; download=0; total=5368709120; expire=1796590527", the de-facto header of
+  // subscription providers: traffic used / limit (bytes) and expiry (Unix time). Missing header = unknown.
+  function parseUserInfo(line) {
+    var o = {};
+    ['upload', 'download', 'total', 'expire'].forEach(function (k) {
+      var m = new RegExp(k + '=(\\d+)', 'i').exec(String(line || ''));
+      if (m) o[k] = parseInt(m[1], 10);
+    });
+    if (o.total === undefined && o.expire === undefined) return null;
+    return { used: (o.upload || 0) + (o.download || 0), total: o.total || 0, expire: o.expire || 0 };
   }
 
   function hostOf(url) { var m = /^https?:\/\/([^\/:?#]+)/i.exec(url); return m ? m[1] : t('subDefault'); }
@@ -304,10 +343,11 @@
     lines.forEach(function (line) {
       chain = chain.then(function () {
         if (/^https?:\/\//i.test(line)) {
-          return fetchSub(line).then(function (servers) {
+          return fetchSub(line).then(function (r) {
+            var servers = r.servers;
             var ex = S.subs.filter(function (s) { return s.url === line; })[0];
-            if (ex) { ex.servers = servers; ex.updated = Date.now(); S.tab = ex.id; }
-            else { var id = uid(); S.subs.push({ id: id, name: hostOf(line), url: line, updated: Date.now(), servers: servers }); S.tab = id; }
+            if (ex) { ex.servers = servers; ex.info = r.info; ex.updated = Date.now(); S.tab = ex.id; }
+            else { var id = uid(); S.subs.push({ id: id, name: hostOf(line), url: line, updated: Date.now(), servers: servers, info: r.info }); S.tab = id; }
             added += servers.length;
           });
         }
@@ -332,7 +372,7 @@
     var chain = Promise.resolve(), ok = 0, fail = 0;
     targets.forEach(function (s) {
       chain = chain.then(function () { return fetchSub(s.url); })
-        .then(function (sv) { s.servers = sv; s.updated = Date.now(); ok++; })
+        .then(function (r) { s.servers = r.servers; s.info = r.info; s.updated = Date.now(); ok++; })
         .catch(function () { fail++; });
     });
     return chain.then(function () { save(); setBusy(false); render(); toast(t('refreshed') + ok + (fail ? t('errors') + fail : '')); });

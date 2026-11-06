@@ -27,12 +27,18 @@
     'mv xray ' + DIR + '/xray.new && mv ' + DIR + '/xray.new ' + DIR + '/xray; cd /; rm -rf $T; echo "XV_OK $V"';
 
   // onDownload() is called only if Xray-core has to be fetched, so the UI can show a progress dialog.
+  function flaky(msg) { var e = new Error(msg); e.timeout = true; return e; }
+
   function ensure(onDownload) {
     return sh(SYNC, 20000).then(function (out) {
-      if (out.indexOf('XV_OK') < 0) throw new Error(out.trim() || 'sync failed');
+      // An empty or odd reply means the service answered badly (it does that while the TV is still booting),
+      // not that the files are missing: flag it as retryable, never as "Xray-core could not be installed".
+      if (out.indexOf('XV_OK') < 0) throw flaky(out.trim() || 'empty reply from the root service');
       return sh(HAVE_XRAY, 10000);
     }).then(function (out) {
-      if (out.trim() === '1') return false;
+      var v = out.trim();
+      if (v === '1') return false;
+      if (v !== '0') throw flaky(v || 'empty reply from the root service');
       if (onDownload) onDownload();
       return sh(DOWNLOAD, 260000).then(function (o) {
         if (o.indexOf('XV_OK') < 0) {

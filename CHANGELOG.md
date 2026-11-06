@@ -8,6 +8,11 @@
 - Fix: a running tunnel with no matching server (subscription deleted) is shown as "Tunnel is active" with its address; deleting the subscription of the connected server stops the tunnel. When the last server is deleted, the tunnel is stopped and `config.json`, the log and the cached ping results are removed, so autostart cannot bring back a deleted server.
 - Fix: adding a subscription that cannot be downloaded shows a persistent error with the reason and a Retry button; a failed download can no longer reuse a previously downloaded subscription.
 
+- Subscription info: days left (green, yellow within 7 days, red when expired) and traffic used / limit, read from the provider's `subscription-userinfo` header, are shown above the list.
+- Ping and refresh are icon buttons (speedometer, circular arrows) that show their label when focused.
+- Decorative emoji in server names are hidden.
+- Setup: an empty or odd reply from the root service is retried and reported as a service problem, never as "could not install Xray-core".
+
 ## 0.3.0
 
 - **Install without a PC.** On first launch the app installs `vpnctl` and `boot_hook.sh` (shipped inside the package under `tv/`) and downloads Xray-core from its official GitHub release with SHA-256 verification, so the Homebrew Channel package works on its own. `install.sh` still works.
