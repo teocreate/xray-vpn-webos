@@ -175,6 +175,21 @@
     }).catch(function (e) { if (!quiet) toast(t('toastNoRoot') + errText(e), 6000); });
   }
 
+  // Only called right after the user deletes a subscription (never on start-up: if the app's storage is ever
+  // lost, an empty list must not take down a working tunnel).
+  // No servers left anywhere: stop the tunnel and drop everything that still points at a deleted server
+  // (config.json would otherwise be restarted by autostart / the watchdog), plus the cached ping results.
+  function cleanupIfEmpty() {
+    if (allServers().length) return Promise.resolve(false);
+    if (!net.running && !net.cfgAddr && !S.activeKey) return Promise.resolve(false);
+    S.activeKey = null; pings = {}; save();
+    return needService()
+      .then(function () { return sh(VPNCTL + ' stop >/dev/null 2>&1; rm -f ' + DIR + '/config.json ' + DIR + '/config.new.json ' + DIR + '/xray.log ' + DIR + '/.failed /tmp/xv_sub'); })
+      .then(function () { return refreshStatus(false, true); })
+      .then(function () { render(); toast(t('cleaned')); return true; })
+      .catch(function () { render(); return false; });
+  }
+
   // Never show a raw "Command failed: <whole shell command>" from the exec service.
   function errText(e) {
     var m = String((e && e.message) || e);
@@ -487,7 +502,8 @@
         S.subs = S.subs.filter(function (s) { return s.id !== S.tab; });
         S.tab = 'manual'; if (hadActive) S.activeKey = null;
         save(); closeModal(); render();
-        if (hadActive && net.running) disconnect();
+        if (!allServers().length) cleanupIfEmpty();
+        else if (hadActive && net.running) disconnect();
         break;
       }
     }

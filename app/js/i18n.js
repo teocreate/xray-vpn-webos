@@ -36,6 +36,7 @@
       tunnelActive: 'Туннель активен', cmdFailed: 'Команда на ТВ завершилась с ошибкой', addFailH: 'Не удалось добавить',
       subBlocked: 'Сайт подписки, похоже, недоступен с ТВ напрямую. Подключитесь к рабочему серверу и добавьте ссылку ещё раз.',
       subViaDead: 'VPN включён, но сервер не пропускает трафик. Выберите другой сервер и добавьте ссылку ещё раз.',
+      cleaned: 'Серверов не осталось: VPN отключён, кэш очищен',
       checkingIp: 'Проверяю IP…', extIpIs: 'Внешний IP: ', ipNone: 'IP не получен'
     },
     en: {
@@ -71,6 +72,7 @@
       tunnelActive: 'Tunnel is active', cmdFailed: 'A command on the TV failed', addFailH: 'Could not add',
       subBlocked: 'The subscription site seems unreachable from the TV directly. Connect to a working server and add the link again.',
       subViaDead: 'VPN is on but the server passes no traffic. Pick another server and add the link again.',
+      cleaned: 'No servers left: VPN stopped, cache cleared',
       checkingIp: 'Checking IP…', extIpIs: 'External IP: ', ipNone: 'IP not received'
     }
   };
